@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-import copy
+
 
 def _L2_loss_mean(x):
     return torch.mean(torch.sum(torch.pow(x, 2), dim=1, keepdim=False) / 2.)
@@ -69,17 +68,15 @@ class Aggregator(nn.Module):
 class KGAT(nn.Module):
 
     def __init__(self, args,
-                 n_users, n_entities, n_relations, n_items, A_in=None,
+                 n_users, n_entities, n_relations, A_in=None,
                  user_pre_embed=None, item_pre_embed=None):
 
         super(KGAT, self).__init__()
         self.use_pretrain = args.use_pretrain
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.n_users = n_users
         self.n_entities = n_entities
         self.n_relations = n_relations
-        self.n_items = n_items
 
         self.embed_dim = args.embed_dim
         self.relation_dim = args.relation_dim
@@ -93,58 +90,28 @@ class KGAT(nn.Module):
         self.cf_l2loss_lambda = args.cf_l2loss_lambda
 
         self.entity_user_embed = nn.Embedding(self.n_entities + self.n_users, self.embed_dim)
-        # self.entity_user_llm_embed = nn.Embedding(self.n_entities + self.n_users, self.embed_dim)
         self.relation_embed = nn.Embedding(self.n_relations, self.relation_dim)
-        self.relation_llm_embed = nn.Embedding(self.n_relations, self.relation_dim)
         self.trans_M = nn.Parameter(torch.Tensor(self.n_relations, self.embed_dim, self.relation_dim))
-        self.trans_llm_M = nn.Parameter(torch.Tensor(self.n_relations, self.embed_dim, self.relation_dim))
-        # self.other_entity_embed = nn.Parameter(torch.Tensor(self.n_entities - self.n_items, self.embed_dim))
-        self.other_entity_llm_embed = nn.Parameter(torch.Tensor(self.n_entities - self.n_items, self.embed_dim))
-        self.user_llm_embed = nn.Parameter(torch.Tensor(self.n_users, self.embed_dim))
 
         if (self.use_pretrain == 1) and (user_pre_embed is not None) and (item_pre_embed is not None):
             other_entity_embed = nn.Parameter(torch.Tensor(self.n_entities - item_pre_embed.shape[0], self.embed_dim))
-            # other_entity_embed = self.other_entity_embed
             nn.init.xavier_uniform_(other_entity_embed)
             entity_user_embed = torch.cat([item_pre_embed, other_entity_embed, user_pre_embed], dim=0)
             self.entity_user_embed.weight = nn.Parameter(entity_user_embed)
         else:
             nn.init.xavier_uniform_(self.entity_user_embed.weight)
 
-        # 加载预训练embedding
-        llm_emb_data = np.load('/data/zou/KGAT-pytorch-master/datasets/pretrain/amazon-book/llm_emb.npz')
-        
-        # 转换为张量并注册为buffer
-        self.register_buffer('item_llm_embed', torch.from_numpy(llm_emb_data['item_embed']).float())
-        # self.register_buffer('user_llm_embed', torch.from_numpy(llm_emb_data['user_embed']).float())
-
-        # 定义降维适配器（Adapter）
-        self.adapter = nn.Sequential(
-            nn.Linear(256, 64),  # 256 -> 64
-            nn.LeakyReLU(),  # 可选，增加非线性
-            nn.LayerNorm(64)  # 可选，归一化
-        )
- 
         nn.init.xavier_uniform_(self.relation_embed.weight)
-        nn.init.xavier_uniform_(self.relation_llm_embed.weight)
         nn.init.xavier_uniform_(self.trans_M)
-        nn.init.xavier_uniform_(self.trans_llm_M)
-        nn.init.xavier_uniform_(self.other_entity_llm_embed)
-        nn.init.xavier_uniform_(self.user_llm_embed)
 
         self.aggregator_layers = nn.ModuleList()
         for k in range(self.n_layers):
             self.aggregator_layers.append(Aggregator(self.conv_dim_list[k], self.conv_dim_list[k + 1], self.mess_dropout[k], self.aggregation_type))
-        self.aggregator2_layers = copy.deepcopy(self.aggregator_layers)
+
         self.A_in = nn.Parameter(torch.sparse.FloatTensor(self.n_users + self.n_entities, self.n_users + self.n_entities))
         if A_in is not None:
             self.A_in.data = A_in
         self.A_in.requires_grad = False
-
-        self.A_llm_in = nn.Parameter(torch.sparse.FloatTensor(self.n_users + self.n_entities, self.n_users + self.n_entities))
-        if A_in is not None:
-            self.A_llm_in.data = A_in
-        self.A_llm_in.requires_grad = False
 
 
     def calc_cf_embeddings(self):
@@ -160,88 +127,30 @@ class KGAT(nn.Module):
         all_embed = torch.cat(all_embed, dim=1)         # (n_users + n_entities, concat_dim)
         return all_embed
 
-    def ego_llm_embed(self):
 
-        adapted_item_embed = self.adapter(self.item_llm_embed)
-        # adapted_user_embed = self.adapter(self.user_llm_embed)
-
-        ego_llm_embed = torch.cat([adapted_item_embed, self.other_entity_llm_embed, self.user_llm_embed], dim=0)  # 沿第0维（行）拼接
-
-        return ego_llm_embed 
-    
-    def calc_cf_llm_embeddings(self):
-         
-        # other_entity_llm_embed = self.other_entity_llm_embed
-        # other_entity_llm_embed = nn.Parameter(torch.Tensor(self.n_entities - self.n_items, self.embed_dim))
-        # other_entity_llm_embed = other_entity_llm_embed.to(self.device)
-        # nn.init.xavier_uniform_(other_entity_llm_embed)
-
-        # self.entity_user_llm_embed.weight = nn.Parameter(ego_llm_embed)
-        ego_llm_embed = self.ego_llm_embed()
-        all_llm_embed = [ego_llm_embed]
-
-        for idx, layer in enumerate(self.aggregator2_layers):
-            ego_llm_embed = layer(ego_llm_embed, self.A_llm_in)
-            norm_llm_embed = F.normalize(ego_llm_embed, p=2, dim=1)
-            all_llm_embed.append(norm_llm_embed)
-
-        # Equation (11)
-        all_llm_embed = torch.cat(all_llm_embed, dim=1)         # (n_users + n_entities, concat_dim)
-        return all_llm_embed
-    
-    def contrastive_loss(self, all_embed, all_llm_embed, num_neg=1, temperature=0.1):
-        N = all_embed.size(0)
-        device = all_embed.device
-        
-        # 正样本得分 [N]
-        pos = torch.sum(all_embed * all_llm_embed, dim=1) / temperature
-        
-        # 随机采样负样本索引 [N, num_neg]
-        neg_idx = torch.randint(0, N, (N, num_neg), device=device)
-        neg_llm = all_llm_embed[neg_idx]  # [N, num_neg, D]
-        
-        # 负样本得分 [N, num_neg]
-        neg = torch.bmm(all_embed.unsqueeze(1), neg_llm.transpose(1, 2)).squeeze() / temperature
-        
-        # 计算 InfoNCE 损失
-        exp_pos = torch.exp(pos)  # [N]
-        exp_neg = torch.exp(neg)  # [N, num_neg]
-        # denom = exp_pos + exp_neg.sum(dim=1)  # [N]
-        denom = exp_pos + exp_neg  # [N]
-        prob = exp_pos / denom  # [N]
-        loss = -torch.log(prob).mean()  # 标量
-        
-        return loss
-        
     def calc_cf_loss(self, user_ids, item_pos_ids, item_neg_ids):
         """
         user_ids:       (cf_batch_size)
         item_pos_ids:   (cf_batch_size)
         item_neg_ids:   (cf_batch_size)
         """
-        all_embed = self.calc_cf_embeddings()                                                     # (n_users + n_entities, concat_dim)
-        all_llm_embed = self.calc_cf_llm_embeddings()                                             # (n_users + n_entities, concat_dim)
-        # 归一化（L2归一化）
-        all_embed = F.normalize(all_embed, p=2, dim=1)              # 归一化CF嵌入
-        all_llm_embed = F.normalize(all_llm_embed, p=2, dim=1)      # 归一化LLM嵌入
-        user_embed = all_embed[user_ids] + all_llm_embed[user_ids]                                # (cf_batch_size, concat_dim)
-        item_pos_embed = all_embed[item_pos_ids] + all_llm_embed[item_pos_ids]                    # (cf_batch_size, concat_dim)
-        item_neg_embed = all_embed[item_neg_ids] + all_llm_embed[item_neg_ids]                    # (cf_batch_size, concat_dim)
+        all_embed = self.calc_cf_embeddings()                       # (n_users + n_entities, concat_dim)
+        user_embed = all_embed[user_ids]                            # (cf_batch_size, concat_dim)
+        item_pos_embed = all_embed[item_pos_ids]                    # (cf_batch_size, concat_dim)
+        item_neg_embed = all_embed[item_neg_ids]                    # (cf_batch_size, concat_dim)
 
         # Equation (12)
         pos_score = torch.sum(user_embed * item_pos_embed, dim=1)   # (cf_batch_size)
         neg_score = torch.sum(user_embed * item_neg_embed, dim=1)   # (cf_batch_size)
-        
+
         # Equation (13)
         # cf_loss = F.softplus(neg_score - pos_score)
         cf_loss = (-1.0) * F.logsigmoid(pos_score - neg_score)
         cf_loss = torch.mean(cf_loss)
 
-        contrastive_loss = self.contrastive_loss(all_embed, all_llm_embed)
-
         l2_loss = _L2_loss_mean(user_embed) + _L2_loss_mean(item_pos_embed) + _L2_loss_mean(item_neg_embed)
-        loss = cf_loss + self.cf_l2loss_lambda * l2_loss + contrastive_loss
-        return cf_loss, contrastive_loss, loss
+        loss = cf_loss + self.cf_l2loss_lambda * l2_loss
+        return loss
 
 
     def calc_kg_loss(self, h, r, pos_t, neg_t):
@@ -272,35 +181,8 @@ class KGAT(nn.Module):
         kg_loss = torch.mean(kg_loss)
 
         l2_loss = _L2_loss_mean(r_mul_h) + _L2_loss_mean(r_embed) + _L2_loss_mean(r_mul_pos_t) + _L2_loss_mean(r_mul_neg_t)
-        loss1 = kg_loss + self.kg_l2loss_lambda * l2_loss
-
-        ego_llm_embed = self.ego_llm_embed()    
-
-        r_embed = self.relation_llm_embed(r)                                                # (kg_batch_size, relation_dim)
-        W_r = self.trans_llm_M[r]                                                           # (kg_batch_size, embed_dim, relation_dim)
-
-        h_embed = ego_llm_embed[h]                                             # (kg_batch_size, embed_dim)
-        pos_t_embed = ego_llm_embed[pos_t]                                     # (kg_batch_size, embed_dim)
-        neg_t_embed = ego_llm_embed[neg_t]                                     # (kg_batch_size, embed_dim)
-
-        r_mul_h = torch.bmm(h_embed.unsqueeze(1), W_r).squeeze(1)                       # (kg_batch_size, relation_dim)
-        r_mul_pos_t = torch.bmm(pos_t_embed.unsqueeze(1), W_r).squeeze(1)               # (kg_batch_size, relation_dim)
-        r_mul_neg_t = torch.bmm(neg_t_embed.unsqueeze(1), W_r).squeeze(1)               # (kg_batch_size, relation_dim)
-
-        # Equation (1)
-        pos_score = torch.sum(torch.pow(r_mul_h + r_embed - r_mul_pos_t, 2), dim=1)     # (kg_batch_size)
-        neg_score = torch.sum(torch.pow(r_mul_h + r_embed - r_mul_neg_t, 2), dim=1)     # (kg_batch_size)
-
-        # Equation (2)
-        # kg_loss = F.softplus(pos_score - neg_score)
-        kg_loss = (-1.0) * F.logsigmoid(neg_score - pos_score)
-        kg_loss = torch.mean(kg_loss)
-
-        l2_loss = _L2_loss_mean(r_mul_h) + _L2_loss_mean(r_embed) + _L2_loss_mean(r_mul_pos_t) + _L2_loss_mean(r_mul_neg_t)
-        loss2 = kg_loss + self.kg_l2loss_lambda * l2_loss
-
-        loss = loss1 + loss2
-        return loss1, loss2, loss
+        loss = kg_loss + self.kg_l2loss_lambda * l2_loss
+        return loss
 
 
     def update_attention_batch(self, h_list, t_list, r_idx):
@@ -316,20 +198,6 @@ class KGAT(nn.Module):
         v_list = torch.sum(r_mul_t * torch.tanh(r_mul_h + r_embed), dim=1)
         return v_list
 
-    def update_llm_attention_batch(self, h_list, t_list, r_idx):
-        r_embed = self.relation_llm_embed.weight[r_idx]
-        W_r = self.trans_llm_M[r_idx]
-
-        ego_llm_embed = self.ego_llm_embed()    
-
-        h_embed = ego_llm_embed[h_list]
-        t_embed = ego_llm_embed[t_list]
-
-        # Equation (4)
-        r_mul_h = torch.matmul(h_embed, W_r)
-        r_mul_t = torch.matmul(t_embed, W_r)
-        v_list = torch.sum(r_mul_t * torch.tanh(r_mul_h + r_embed), dim=1)
-        return v_list
 
     def update_attention(self, h_list, t_list, r_list, relations):
         device = self.A_in.device
@@ -360,32 +228,6 @@ class KGAT(nn.Module):
         A_in = torch.sparse.softmax(A_in.cpu(), dim=1)
         self.A_in.data = A_in.to(device)
 
-        rows = []
-        cols = []
-        values = []
-
-        for r_idx in relations:
-            index_list = torch.where(r_list == r_idx)
-            batch_h_list = h_list[index_list]
-            batch_t_list = t_list[index_list]
-
-            batch_v_list = self.update_llm_attention_batch(batch_h_list, batch_t_list, r_idx)
-            rows.append(batch_h_list)
-            cols.append(batch_t_list)
-            values.append(batch_v_list)
-
-        rows = torch.cat(rows)
-        cols = torch.cat(cols)
-        values = torch.cat(values)
-
-        indices = torch.stack([rows, cols])
-        shape = self.A_llm_in.shape
-        A_llm_in = torch.sparse.FloatTensor(indices, values, torch.Size(shape))
-
-        # Equation (5)
-        A_llm_in = torch.sparse.softmax(A_llm_in.cpu(), dim=1)
-        self.A_llm_in.data = A_llm_in.to(device)
-
 
     def calc_score(self, user_ids, item_ids):
         """
@@ -393,9 +235,8 @@ class KGAT(nn.Module):
         item_ids:  (n_items)
         """
         all_embed = self.calc_cf_embeddings()           # (n_users + n_entities, concat_dim)
-        all_llm_embed = self.calc_cf_llm_embeddings()  
-        user_embed = all_embed[user_ids] + all_llm_embed[user_ids]                # (n_users, concat_dim)
-        item_embed = all_embed[item_ids] + all_llm_embed[item_ids]                # (n_items, concat_dim)
+        user_embed = all_embed[user_ids]                # (n_users, concat_dim)
+        item_embed = all_embed[item_ids]                # (n_items, concat_dim)
 
         # Equation (12)
         cf_score = torch.matmul(user_embed, item_embed.transpose(0, 1))    # (n_users, n_items)
@@ -411,5 +252,4 @@ class KGAT(nn.Module):
             return self.update_attention(*input)
         if mode == 'predict':
             return self.calc_score(*input)
-
 
