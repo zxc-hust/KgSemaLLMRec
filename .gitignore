@@ -27,3 +27,7 @@ Meta-Llama-3-8B-Instruct
 generated_descriptions.json
 generated_descriptions2.json
 entity_texts_processed.json
+item_llm_emb.py
+itemprompt_gen.py
+user_llm_emb.py
+userprompt_gen.py
