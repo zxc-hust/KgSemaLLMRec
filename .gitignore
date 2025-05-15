@@ -21,3 +21,9 @@ freebase-rdf-latest.gz
 freebase-wikidata-convert-main.zip
 mid_texts.tsv
 non_mids.json
+text-embedding-ada-002
+jina-embeddings-v3
+Meta-Llama-3-8B-Instruct
+generated_descriptions.json
+generated_descriptions2.json
+entity_texts_processed.json
