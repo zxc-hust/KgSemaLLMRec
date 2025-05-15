@@ -237,8 +237,8 @@ with open('entity_texts_processed.json', 'r', encoding='utf-8') as f:
 
 # 读取现有的条目（使用 JSON Lines 格式）
 existing_entries = {}
-if os.path.exists('generated_descriptions.json'):
-    with open('generated_descriptions.json', 'r', encoding='utf-8') as f:
+if os.path.exists('generated_descriptions2.json'):
+    with open('generated_descriptions2.json', 'r', encoding='utf-8') as f:
         for line in f:
             try:
                 entry = json.loads(line.strip())
@@ -256,7 +256,7 @@ if not new_entities:
     print("所有实体已处理完毕。")
 else:
     # 以追加模式打开输出文件
-    with open('generated_descriptions.json', 'a', encoding='utf-8') as f:
+    with open('generated_descriptions2.json', 'w', encoding='utf-8') as f:
         # 处理每个新实体并生成描述文本
         for key, entity_data in tqdm(new_entities.items(), desc="处理新实体", total=len(new_entities)):
             # 清理名称和描述中的语言标签
@@ -290,32 +290,85 @@ else:
             #     描述：{entity_desc}"""
             #     }
             # ]
-            messages = [
-                {
-                    "role": "system",
-                    "content": """You are an encyclopedia editor. Generate entity descriptions that:
-                1. Start directly with the canonical name
-                2. Deduce entity type from context (e.g., novel, person, event)
-                3. Extract key attributes from description:
-                - For books: author, year, genre, significance
-                - For people: occupation, achievements, nationality
-                - For concepts: definition, applications
-                4. Use only 3-5 concise sentences
-                5. Maintain neutral tone without introductory phrases
+            # messages = [
+            #     {
+            #         "role": "system",
+            #         "content": """You are an encyclopedia editor. Generate entity descriptions that:
+            #     1. Start directly with the canonical name
+            #     2. Deduce entity type from context (e.g., novel, person, event)
+            #     3. Extract key attributes from description:
+            #     - For books: author, year, genre, significance
+            #     - For people: occupation, achievements, nationality
+            #     - For concepts: definition, applications
+            #     4. Use only 3-5 concise sentences
+            #     5. Maintain neutral tone without introductory phrases
 
-                Bad: "Here is.../This entity describes..." 
-                Good: "War and Peace is a historical novel by Leo Tolstoy (1869)..." 
+            #     Bad: "Here is.../This entity describes..." 
+            #     Good: "War and Peace is a historical novel by Leo Tolstoy (1869)..." 
 
-                Structure:
-                [Name] is a [deduced type] [optional subtype]. [Key attribute 1]. [Key attribute 2]. [Significance/unique aspect]."""
-                },
-                {
-                    "role": "user",
-                    "content": f"""Generate description using ONLY these fields:
-                Name: {entity_name}
-                Description: {entity_desc}"""
-                }
-            ]
+            #     Structure:
+            #     [Name] is a [deduced type] [optional subtype]. [Key attribute 1]. [Key attribute 2]. [Significance/unique aspect]."""
+            #     },
+            #     {
+            #         "role": "user",
+            #         "content": f"""Generate description using ONLY these fields:
+            #     Name: {entity_name}
+            #     Description: {entity_desc}"""
+            #     }
+            # ]
+            if entity_desc=="":
+                messages = [
+                    {
+                        "role": "system",
+                        "content": """You are an encyclopedia editor. Generate entity descriptions that:
+                    1. Start directly with the canonical entity name, not with phrases like 'Here is the generated entity description'
+                    2. Deduce entity type from context (e.g., novel, person, event)
+                    3. Extract key attributes from description:
+                    - For books: author, year, genre, significance
+                    - For people: occupation, achievements, nationality
+                    - For concepts: definition, applications
+                    4. Use strictly 3–5 concise sentences—no more, no fewer
+                    5. Maintain neutral tone without introductory phrases
+
+                    Bad: "Here is.../This entity describes..." 
+                    Good: "War and Peace is a historical novel by Leo Tolstoy (1869)..." 
+
+                    Structure:
+                    [Name] is a [deduced type] [optional subtype]. [Key attribute 1]. [Key attribute 2]. [Significance/unique aspect]."""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"""Generate entity description using these fields, if any key attributes are missing, supplement them from your knowledge base:
+                    Entity Name: {entity_name}
+                    Entity Description: {entity_desc}"""
+                    }
+                ]
+            else:
+                messages = [
+                    {
+                        "role": "system",
+                        "content": """You are an encyclopedia editor. Generate entity descriptions that:
+                    1. Start directly with the canonical entity name, not with phrases like 'Here is the generated entity description' 
+                    2. Deduce entity type from context (e.g., novel, person, event)
+                    3. Extract key attributes from description:
+                    - For books: author, year, genre, significance
+                    - For people: occupation, achievements, nationality
+                    - For concepts: definition, applications
+                    4. Use strictly 3–5 concise sentences—no more, no fewer
+                    5. Maintain neutral tone without introductory phrases
+
+                    Bad: "Here is.../This entity describes..." 
+                    Good: "War and Peace is a historical novel by Leo Tolstoy (1869)..." 
+
+                    Structure:
+                    [Name] is a [deduced type] [optional subtype]. [Key attribute 1]. [Key attribute 2]. [Significance/unique aspect]."""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"""Generate entity description using these fields, if any key attributes are missing, supplement them from your knowledge base:
+                    Entity Description: {entity_desc}"""
+                    }
+                ]
 
             # 生成描述文本
             outputs = pipeline(
@@ -334,4 +387,4 @@ else:
             entry = {"key": key, "description": generated_text}
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
 
-print("描述文本已生成并保存至 'generated_descriptions.json'。")
+print("描述文本已生成并保存至 'generated_descriptions2.json'。")
