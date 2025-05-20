@@ -2,7 +2,7 @@ import argparse
 
 
 def parse_kgat_args():
-    parser = argparse.ArgumentParser(description="Run KGAT.")
+    parser = argparse.ArgumentParser(description="Run KSLR.")
 
     parser.add_argument('--seed', type=int, default=2025,
                         help='Random seed.')
@@ -12,12 +12,18 @@ def parse_kgat_args():
     parser.add_argument('--data_dir', nargs='?', default='datasets/',
                         help='Input data path.')
 
-    parser.add_argument('--use_pretrain', type=int, default=1,
-                        help='0: No pretrain, 1: Pretrain with the learned embeddings, 2: Pretrain with stored model.')
-    parser.add_argument('--pretrain_embedding_dir', nargs='?', default='datasets/pretrain/',
-                        help='Path of learned embeddings.')
+    # parser.add_argument('--use_pretrain', type=int, default=1,
+    #                     help='0: No pretrain, 1: Pretrain with the learned embeddings, 2: Pretrain with stored model.')
+    
+    parser.add_argument('--use_pretrain', type=int, default=0,
+                        help='0: No pretrain, 1: Pretrain with stored model.')
+
+    # parser.add_argument('--pretrain_embedding_dir', nargs='?', default='datasets/pretrain/',
+    #                     help='Path of learned embeddings.')
     parser.add_argument('--pretrain_model_path', nargs='?', default='trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.001_pretrain1/model_epoch5.pth',
                         help='Path of stored model.')
+    parser.add_argument('--llm_embedding_dir', nargs='?', default='datasets/amazon-book',
+                    help='Path of llm embedding.')
 
     parser.add_argument('--cf_batch_size', type=int, default=1024,
                         help='CF batch size.')
@@ -45,7 +51,7 @@ def parse_kgat_args():
     parser.add_argument('--cf_l2loss_lambda', type=float, default=1e-5,
                         help='Lambda when calculating CF l2 loss.')
 
-    parser.add_argument('--lr', type=float, default=0.0001,
+    parser.add_argument('--lr', type=float, default=0.001,
                         help='Learning rate.')
     parser.add_argument('--n_epoch', type=int, default=100,
                         help='Number of epoch.')
@@ -64,7 +70,7 @@ def parse_kgat_args():
 
     args = parser.parse_args()
 
-    save_dir = 'trained_model/KGAT/{}/embed-dim{}_relation-dim{}_{}_{}_{}_lr{}_pretrain{}/'.format(
+    save_dir = 'trained_model/KGAT/{}/embed-dim{}_relation-dim{}_{}_{}_{}_lr{}_pretrain_model{}/'.format(
         args.data_name, args.embed_dim, args.relation_dim, args.laplacian_type, args.aggregation_type,
         '-'.join([str(i) for i in eval(args.conv_dim_list)]), args.lr, args.use_pretrain)
     args.save_dir = save_dir

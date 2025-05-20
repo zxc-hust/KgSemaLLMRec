@@ -8,12 +8,12 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.KGAT import KGAT
-from parser.parser_kgat import *
+from model.KSLR_adapter import KGAT
+from parser.parser_kslr import *
 from utils.log_helper import *
 from utils.metrics import *
 from utils.model_helper import *
-from data_loader.loader_kgat import DataLoaderKGAT
+from data_loader.loader_kslr import DataLoaderKGAT
 
 
 def evaluate(model, dataloader, Ks, device):
@@ -74,18 +74,19 @@ def train(args):
 
     # load data
     data = DataLoaderKGAT(args, logging)
-    if args.use_pretrain == 1:
-        user_pre_embed = torch.tensor(data.user_pre_embed)
-        # user_pre_embed = None
-        item_pre_embed = torch.tensor(data.item_pre_embed)
-    else:
-        user_pre_embed, item_pre_embed = None, None
+    # if args.use_pretrain == 1:
+    #     user_pre_embed = torch.tensor(data.user_pre_embed)
+    #     item_pre_embed = torch.tensor(data.item_pre_embed)
+    # else:
+    #     user_pre_embed, item_pre_embed = None, None
 
     # construct model & optimizer
-    model = KGAT(args, data.n_users, data.n_entities, data.n_relations, data.n_items, data.A_in, user_pre_embed, item_pre_embed)
-    if args.use_pretrain == 2:
+    llm_emb = torch.tensor(data.llm_emb)
+    model = KGAT(args, data.n_users, data.n_entities, data.n_relations, llm_emb, data.A_in)
+    if args.use_pretrain == 1:
         model = load_model(model, args.pretrain_model_path)
         pre_epoch = int(args.pretrain_model_path.split("_epoch")[-1].split(".")[0])
+
     model.to(device)
     logging.info(model)
 
@@ -124,7 +125,7 @@ def train(args):
             cf_batch_pos_item = cf_batch_pos_item.to(device)
             cf_batch_neg_item = cf_batch_neg_item.to(device)
 
-            cf_loss, contrastive_loss, cf_batch_loss = model(cf_batch_user, cf_batch_pos_item, cf_batch_neg_item, mode='train_cf')
+            cf_batch_loss = model(cf_batch_user, cf_batch_pos_item, cf_batch_neg_item, mode='train_cf')
 
             if np.isnan(cf_batch_loss.cpu().detach().numpy()):
                 logging.info('ERROR (CF Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, iter, n_cf_batch))
@@ -165,7 +166,7 @@ def train(args):
             kg_batch_pos_tail = kg_batch_pos_tail.to(device)
             kg_batch_neg_tail = kg_batch_neg_tail.to(device)
 
-            loss1, loss2, kg_batch_loss = model(kg_batch_head, kg_batch_relation, kg_batch_pos_tail, kg_batch_neg_tail, mode='train_kg')
+            kg_batch_loss = model(kg_batch_head, kg_batch_relation, kg_batch_pos_tail, kg_batch_neg_tail, mode='train_kg')
 
             if np.isnan(kg_batch_loss.cpu().detach().numpy()):
                 logging.info('ERROR (KG Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, iter, n_kg_batch))

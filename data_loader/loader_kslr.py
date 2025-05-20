@@ -42,6 +42,7 @@ class DataLoaderKGAT(DataLoaderBase):
         kg_data['r'] += 2
         self.n_relations = max(kg_data['r']) + 1
         self.n_entities = max(max(kg_data['h']), max(kg_data['t'])) + 1
+        assert self.llm_emb.shape[0] == self.n_entities
         self.n_users_entities = self.n_users + self.n_entities
 
         self.cf_train_data = (np.array(list(map(lambda d: d + self.n_entities, self.cf_train_data[0]))).astype(np.int32), self.cf_train_data[1].astype(np.int32))

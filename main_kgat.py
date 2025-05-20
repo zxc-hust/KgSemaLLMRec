@@ -8,7 +8,7 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.kgat import KGAT
+from model.KGAT import KGAT
 from parser.parser_kgat import *
 from utils.log_helper import *
 from utils.metrics import *
@@ -70,13 +70,11 @@ def train(args):
 
     # GPU / CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    pre_epoch = 0
 
     # load data
     data = DataLoaderKGAT(args, logging)
     if args.use_pretrain == 1:
         user_pre_embed = torch.tensor(data.user_pre_embed)
-        # user_pre_embed = None
         item_pre_embed = torch.tensor(data.item_pre_embed)
     else:
         user_pre_embed, item_pre_embed = None, None
@@ -85,7 +83,7 @@ def train(args):
     model = KGAT(args, data.n_users, data.n_entities, data.n_relations, data.A_in, user_pre_embed, item_pre_embed)
     if args.use_pretrain == 2:
         model = load_model(model, args.pretrain_model_path)
-        pre_epoch = int(args.pretrain_model_path.split("_epoch")[-1].split(".")[0])
+
     model.to(device)
     logging.info(model)
 
@@ -104,7 +102,7 @@ def train(args):
     metrics_list = {k: {'precision': [], 'recall': [], 'ndcg': []} for k in Ks}
 
     # train model
-    for epoch in range(1 + pre_epoch, args.n_epoch + 1 + pre_epoch):
+    for epoch in range(1, args.n_epoch + 1):
         time0 = time()
         model.train()
 
@@ -113,10 +111,7 @@ def train(args):
         cf_total_loss = 0
         n_cf_batch = data.n_cf_train // data.cf_batch_size + 1
 
-        # for iter in range(1, n_cf_batch + 1):
-        # CF training with progress bar
-        cf_pbar = tqdm(range(1, n_cf_batch + 1), desc=f'CF Epoch {epoch}', unit='batch')
-        for iter in cf_pbar:
+        for iter in range(1, n_cf_batch + 1):
             time2 = time()
             cf_batch_user, cf_batch_pos_item, cf_batch_neg_item = data.generate_cf_batch(data.train_user_dict, data.cf_batch_size)
             cf_batch_user = cf_batch_user.to(device)
@@ -134,29 +129,16 @@ def train(args):
             cf_optimizer.zero_grad()
             cf_total_loss += cf_batch_loss.item()
 
-            # Update progress bar
-            cf_pbar.set_postfix({
-                'batch_loss': f'{cf_batch_loss.item():.4f}',
-                'avg_loss': f'{(cf_total_loss / iter):.4f}'
-            })
-            
-        #     if (iter % args.cf_print_every) == 0:
-        #         logging.info('CF Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, iter, n_cf_batch, time() - time2, cf_batch_loss.item(), cf_total_loss / iter))
-        # logging.info('CF Training: Epoch {:04d} Total Iter {:04d} | Total Time {:.1f}s | Iter Mean Loss {:.4f}'.format(epoch, n_cf_batch, time() - time1, cf_total_loss / n_cf_batch))
-            # if (iter % args.cf_print_every) == 0:
-            #     logging.info('CF Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, iter, n_cf_batch, time() - time2, cf_batch_loss.item(), cf_total_loss / iter))
-        cf_pbar.close()
+            if (iter % args.cf_print_every) == 0:
+                logging.info('CF Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, iter, n_cf_batch, time() - time2, cf_batch_loss.item(), cf_total_loss / iter))
         logging.info('CF Training: Epoch {:04d} Total Iter {:04d} | Total Time {:.1f}s | Iter Mean Loss {:.4f}'.format(epoch, n_cf_batch, time() - time1, cf_total_loss / n_cf_batch))
-        
+
         # train kg
         time3 = time()
         kg_total_loss = 0
         n_kg_batch = data.n_kg_train // data.kg_batch_size + 1
 
-        # for iter in range(1, n_kg_batch + 1):
-        # KG training with progress bar
-        kg_pbar = tqdm(range(1, n_kg_batch + 1), desc=f'KG Epoch {epoch}', unit='batch')
-        for iter in kg_pbar:
+        for iter in range(1, n_kg_batch + 1):
             time4 = time()
             kg_batch_head, kg_batch_relation, kg_batch_pos_tail, kg_batch_neg_tail = data.generate_kg_batch(data.train_kg_dict, data.kg_batch_size, data.n_users_entities)
             kg_batch_head = kg_batch_head.to(device)
@@ -175,15 +157,8 @@ def train(args):
             kg_optimizer.zero_grad()
             kg_total_loss += kg_batch_loss.item()
 
-            # Update progress bar
-            kg_pbar.set_postfix({
-                'batch_loss': f'{kg_batch_loss.item():.4f}',
-                'avg_loss': f'{(kg_total_loss / iter):.4f}'
-            })
-
-            # if (iter % args.kg_print_every) == 0:
-            #     logging.info('KG Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, iter, n_kg_batch, time() - time4, kg_batch_loss.item(), kg_total_loss / iter))
-        kg_pbar.close()
+            if (iter % args.kg_print_every) == 0:
+                logging.info('KG Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, iter, n_kg_batch, time() - time4, kg_batch_loss.item(), kg_total_loss / iter))
         logging.info('KG Training: Epoch {:04d} Total Iter {:04d} | Total Time {:.1f}s | Iter Mean Loss {:.4f}'.format(epoch, n_kg_batch, time() - time3, kg_total_loss / n_kg_batch))
 
         # update attention
@@ -263,5 +238,4 @@ if __name__ == '__main__':
     args = parse_kgat_args()
     train(args)
     # predict(args)
-
 
