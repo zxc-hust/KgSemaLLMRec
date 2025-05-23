@@ -69,7 +69,7 @@ class Aggregator(nn.Module):
 class KGAT(nn.Module):
 
     def __init__(self, args,
-                 n_users, n_entities, n_relations, llm_emb, A_in=None):
+                 n_users, n_entities, n_relations, llm_emb,  trained_entity_embed, A_in=None):
 
         super(KGAT, self).__init__()
         self.use_pretrain = args.use_pretrain
@@ -102,10 +102,12 @@ class KGAT(nn.Module):
         # else:
         #     nn.init.xavier_uniform_(self.entity_user_embed.weight)
 
-        self.register_buffer('llm_emb', llm_emb.float())
-        # random_emb =  torch.empty(llm_emb.shape[0], llm_emb.shape[1])
-        # nn.init.xavier_normal_(random_emb)
-        # self.register_buffer('llm_emb', random_emb)
+        # self.register_buffer('llm_emb', llm_emb.float())
+        random_emb =  torch.empty(llm_emb.shape[0], llm_emb.shape[1])
+        nn.init.xavier_normal_(random_emb)
+        self.register_buffer('llm_emb', random_emb)
+
+        self.register_buffer('trained_entity_embed',  trained_entity_embed.float())
 
 
         # self.adapter = nn.Sequential(
@@ -207,11 +209,22 @@ class KGAT(nn.Module):
         l2_loss = _L2_loss_mean(user_embed) + _L2_loss_mean(item_pos_embed) + _L2_loss_mean(item_neg_embed)
         # l2_loss += _L2_loss_mean(self.adapter[0].weight)
         # l2_loss += _L2_loss_mean(self.adapter[2].weight)
+        # entity_emb = self.get_entity_embeddings()
+        # trained_entity_embed = self.trained_entity_embed
+        # entity_emb = F.normalize(entity_emb, p=2, dim=1)
+        # trained_entity_embed = F.normalize(trained_entity_embed, p=2, dim=1)
+        # contrastive_loss = F.mse_loss(entity_emb, trained_entity_embed)
+        # contrastive_loss = 1 - F.cosine_similarity(entity_emb, trained_entity_embed).mean()
+        entity_user_emb = self.entity_user_embed()
+        trained_entity_user_embed = self.trained_entity_embed
+        entity_user_emb = F.normalize(entity_user_emb, p=2, dim=1)
+        trained_entity_user_embed = F.normalize(trained_entity_user_embed, p=2, dim=1)
+        # contrastive_loss = F.mse_loss(entity_user_emb, trained_entity_user_embed)
+        contrastive_loss = 1 - F.cosine_similarity(entity_user_emb, trained_entity_user_embed).mean()
 
-        loss = cf_loss + self.cf_l2loss_lambda * l2_loss
-        return loss
-
-
+        loss = cf_loss + self.cf_l2loss_lambda * l2_loss + 0.1 * contrastive_loss
+        return cf_loss, self.cf_l2loss_lambda * l2_loss, 0.1 * contrastive_loss, loss
+   
     def calc_kg_loss(self, h, r, pos_t, neg_t):
         """
         h:      (kg_batch_size)

@@ -92,78 +92,86 @@ class KGAT(nn.Module):
 
         self.register_buffer('llm_emb', llm_emb.float())
 
-        checkpoint = torch.load('trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.0001_pretrain_model1/model_epoch74.pth', map_location='cpu')
+        # checkpoint = torch.load('trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.0001_pretrain_model1/model_epoch74.pth', map_location='cpu')
         
         self.adapter = nn.Sequential(
             nn.Linear(self.llm_dim, min(256,(self.llm_dim + self.embed_dim) // 2)),
             nn.LeakyReLU(),
             nn.Linear(min(256,(self.llm_dim + self.embed_dim) // 2) , self.embed_dim)
         )
+        self._init_adapter_weights()
         self.user_embed = nn.Embedding(n_users, self.embed_dim)
         self.relation_embed = nn.Embedding(self.n_relations, self.relation_dim)
         self.trans_M = nn.Parameter(torch.Tensor(self.n_relations, self.embed_dim, self.relation_dim))
+        nn.init.xavier_uniform_(self.user_embed.weight)   
+        nn.init.xavier_uniform_(self.relation_embed.weight)
+        nn.init.xavier_uniform_(self.trans_M)
 
-        adapter_state = {k.replace('adapter.', ''): v for k, v in checkpoint['model_state_dict'].items() if k.startswith('adapter.')}
-        user_embed_state = {k.replace('user_embed.', ''): v for k, v in checkpoint['model_state_dict'].items() if k.startswith('user_embed.')}
-        relation_embed_state = {k.replace('relation_embed.', ''): v for k, v in checkpoint['model_state_dict'].items() if k.startswith('relation_embed.')
-        }
-        trans_M_state = checkpoint['model_state_dict']['trans_M']
+        # adapter_state = {k.replace('adapter.', ''): v for k, v in checkpoint['model_state_dict'].items() if k.startswith('adapter.')}
+        # self.adapter.load_state_dict(adapter_state)
 
-        self.adapter.load_state_dict(adapter_state)
-        self.user_embed.load_state_dict(user_embed_state)
-        self.relation_embed.load_state_dict(relation_embed_state)
-        self.trans_M.data.copy_(trans_M_state)
+        # self.user_embed.load_state_dict(user_embed_state)
+        # self.relation_embed.load_state_dict(relation_embed_state)
+        # self.trans_M.data.copy_(trans_M_state)
 
         self.aggregator_layers = nn.ModuleList()
         for k in range(self.n_layers):
             self.aggregator_layers.append(Aggregator(self.conv_dim_list[k], self.conv_dim_list[k + 1], self.mess_dropout[k], self.aggregation_type))
-        for k in range(self.n_layers):
-            layer_state = {
-                key.replace(f'aggregator_layers.{k}.', ''): value
-                for key, value in checkpoint['model_state_dict'].items()
-                if key.startswith(f'aggregator_layers.{k}.')
-            }
-            self.aggregator_layers[k].load_state_dict(layer_state)
+        # for k in range(self.n_layers):
+        #     layer_state = {
+        #         key.replace(f'aggregator_layers.{k}.', ''): value
+        #         for key, value in checkpoint['model_state_dict'].items()
+        #         if key.startswith(f'aggregator_layers.{k}.')
+        #     }
+        #     self.aggregator_layers[k].load_state_dict(layer_state)
 
         self.A_in = nn.Parameter(torch.sparse.FloatTensor(self.n_users + self.n_entities, self.n_users + self.n_entities))
         if A_in is not None:
             self.A_in.data = A_in
         self.A_in.requires_grad = False
-        A_in.data = checkpoint['model_state_dict']['A_in']
+        # A_in.data = checkpoint['model_state_dict']['A_in']
 
         # 复制一份
         self.llm_user_embed = nn.Embedding(n_users, self.embed_dim)
         self.llm_relation_embed = nn.Embedding(self.n_relations, self.relation_dim)
         self.llm_trans_M = nn.Parameter(torch.Tensor(self.n_relations, self.embed_dim, self.relation_dim))
 
-        self.llm_user_embed.load_state_dict(user_embed_state)  # 复制user_embed参数
-        self.llm_relation_embed.load_state_dict(relation_embed_state)  # 复制relation_embed参数
-        self.llm_trans_M.data.copy_(trans_M_state)
+        nn.init.xavier_uniform_(self.llm_user_embed.weight)   
+        nn.init.xavier_uniform_(self.llm_relation_embed.weight)
+        nn.init.xavier_uniform_(self.llm_trans_M)
+
+        # user_embed_state = {k.replace('user_embed.', ''): v for k, v in checkpoint['model_state_dict'].items() if k.startswith('user_embed.')}
+        # relation_embed_state = {k.replace('relation_embed.', ''): v for k, v in checkpoint['model_state_dict'].items() if k.startswith('relation_embed.')
+        # }
+        # trans_M_state = checkpoint['model_state_dict']['trans_M']
+
+        # self.llm_user_embed.load_state_dict(user_embed_state)  # 复制user_embed参数
+        # self.llm_relation_embed.load_state_dict(relation_embed_state)  # 复制relation_embed参数
+        # self.llm_trans_M.data.copy_(trans_M_state)
 
         self.llm_aggregator_layers = nn.ModuleList()
         for k in range(self.n_layers):
             self.llm_aggregator_layers.append(
                 Aggregator(self.conv_dim_list[k], self.conv_dim_list[k + 1], self.mess_dropout[k], self.aggregation_type)
             )
-        for k in range(self.n_layers):
-            # 原始模块加载
-            layer_state = {
-                key.replace(f'aggregator_layers.{k}.', ''): value
-                for key, value in checkpoint['model_state_dict'].items()
-                if key.startswith(f'aggregator_layers.{k}.')
-            }
-            self.llm_aggregator_layers[k].load_state_dict(layer_state)
+        # for k in range(self.n_layers):
+        #     # 原始模块加载
+        #     layer_state = {
+        #         key.replace(f'aggregator_layers.{k}.', ''): value
+        #         for key, value in checkpoint['model_state_dict'].items()
+        #         if key.startswith(f'aggregator_layers.{k}.')
+        #     }
+        #     self.llm_aggregator_layers[k].load_state_dict(layer_state)
 
         self.llm_A_in = nn.Parameter(torch.sparse.FloatTensor(self.n_users + self.n_entities, self.n_users + self.n_entities))
-        self.llm_A_in.requires_grad = False  # 保持与原始一致
-        self.llm_A_in.data = checkpoint['model_state_dict']['A_in'].clone()
+        # self.llm_A_in.requires_grad = False  # 保持与原始一致
+        # self.llm_A_in.data = checkpoint['model_state_dict']['A_in']
+        if A_in is not None:
+            self.llm_A_in.data = A_in.clone()
+        self.llm_A_in.requires_grad = False
 
         self.entity_user_embed = nn.Embedding(self.n_entities + self.n_users, self.embed_dim)
-        with torch.no_grad():
-            entity_embed = self.adapter(self.llm_emb)
-        user_emb = self.user_embed.weight
-        entity_user_embed =  torch.cat([entity_embed, user_emb], dim=0)
-        self.entity_user_embed.weight = nn.Parameter(entity_user_embed)
+        nn.init.xavier_uniform_(self.entity_user_embed.weight)
     
     def _init_adapter_weights(self):
         for m in self.adapter:

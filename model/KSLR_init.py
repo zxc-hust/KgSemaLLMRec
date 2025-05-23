@@ -94,6 +94,9 @@ class KGAT(nn.Module):
         self.relation_embed = nn.Embedding(self.n_relations, self.relation_dim)
         self.trans_M = nn.Parameter(torch.Tensor(self.n_relations, self.embed_dim, self.relation_dim))
 
+        nn.init.xavier_uniform_(self.relation_embed.weight)
+        nn.init.xavier_uniform_(self.trans_M)
+
         # if (self.use_pretrain == 1) and (user_pre_embed is not None) and (item_pre_embed is not None):
         #     other_entity_embed = nn.Parameter(torch.Tensor(self.n_entities - item_pre_embed.shape[0], self.embed_dim))
         #     nn.init.xavier_uniform_(other_entity_embed)
@@ -120,22 +123,33 @@ class KGAT(nn.Module):
         #     nn.LeakyReLU(),
         #     nn.Linear((self.llm_dim + self.embed_dim) // 2 , self.embed_dim)
         # )
-        self.adapter = nn.Sequential(
-            nn.Linear(self.llm_dim, min(256,(self.llm_dim + self.embed_dim) // 2)),
-            nn.LeakyReLU(),
-            nn.Linear(min(256,(self.llm_dim + self.embed_dim) // 2) , self.embed_dim)
-        )
+
         # self.adapter = nn.Sequential(
         #     nn.Linear(self.llm_dim, self.llm_dim // 2),
         #     nn.LeakyReLU(),
         #     nn.Linear(self.llm_dim // 2 , self.embed_dim)
         # )
-        self._init_adapter_weights()
+        # self._init_adapter_weights()
         self.user_embed = nn.Embedding(n_users, self.embed_dim)
         nn.init.xavier_uniform_(self.user_embed.weight)    
         
-        nn.init.xavier_uniform_(self.relation_embed.weight)
-        nn.init.xavier_uniform_(self.trans_M)
+
+        self.adapter = nn.Sequential(
+            nn.Linear(self.llm_dim, min(256,(self.llm_dim + self.embed_dim) // 2)),
+            nn.LeakyReLU(),
+            nn.Linear(min(256,(self.llm_dim + self.embed_dim) // 2) , self.embed_dim)
+        )
+        checkpoint = torch.load('trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.0001_pretrain_model1/pretrained_model_epoch74.pth', map_location='cpu')
+        adapter_state = {k.replace('adapter.', ''): v for k, v in checkpoint['model_state_dict'].items() if k.startswith('adapter.')}
+        self.adapter.load_state_dict(adapter_state)
+
+        self.entity_user_embed = nn.Embedding(self.n_entities + self.n_users, self.embed_dim)
+        # with torch.no_grad():
+        #     entity_embed = self.adapter(self.llm_emb)
+        # user_emb = self.user_embed.weight
+        # entity_user_embed =  torch.cat([entity_embed, user_emb], dim=0)
+        # self.entity_user_embed.weight = nn.Parameter(entity_user_embed)
+        nn.init.xavier_uniform_(self.entity_user_embed.weight)
 
         self.aggregator_layers = nn.ModuleList()
         for k in range(self.n_layers):
@@ -146,32 +160,32 @@ class KGAT(nn.Module):
             self.A_in.data = A_in
         self.A_in.requires_grad = False
 
-    def _init_adapter_weights(self):
-        # for layer in self.adapter:
-        #     if isinstance(layer, nn.Linear):
-        #         # 所有Linear层使用LeakyReLU的gain（保守选择）
-        #         nn.init.xavier_uniform_(
-        #             layer.weight,
-        #             gain=nn.init.calculate_gain('leaky_relu', 0.2)
-        #         )
-        #         nn.init.zeros_(layer.bias)
-        # 单独为LayerNorm设置eps（可选）
-        # if isinstance(self.adapter[-1], nn.LayerNorm):
-        #     self.adapter[-1].eps = 1e-6
-        for m in self.adapter:
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
+    # def _init_adapter_weights(self):
+    #     # for layer in self.adapter:
+    #     #     if isinstance(layer, nn.Linear):
+    #     #         # 所有Linear层使用LeakyReLU的gain（保守选择）
+    #     #         nn.init.xavier_uniform_(
+    #     #             layer.weight,
+    #     #             gain=nn.init.calculate_gain('leaky_relu', 0.2)
+    #     #         )
+    #     #         nn.init.zeros_(layer.bias)
+    #     # 单独为LayerNorm设置eps（可选）
+    #     # if isinstance(self.adapter[-1], nn.LayerNorm):
+    #     #     self.adapter[-1].eps = 1e-6
+    #     for m in self.adapter:
+    #         if isinstance(m, nn.Linear):
+    #             nn.init.xavier_uniform_(m.weight)
 
     def get_entity_embeddings(self):
         return self.adapter(self.llm_emb)
     
-    def entity_user_embed(self):
-        entity_emb = self.get_entity_embeddings()  # (n_entities, embed_dim)
-        user_emb = self.user_embed.weight          # (n_users, embed_dim)
-        return torch.cat([entity_emb, user_emb], dim=0)
+    # def entity_user_embed(self):
+    #     entity_emb = self.get_entity_embeddings()  # (n_entities, embed_dim)
+    #     user_emb = self.user_embed.weight          # (n_users, embed_dim)
+    #     return torch.cat([entity_emb, user_emb], dim=0)
 
     def calc_cf_embeddings(self):
-        ego_embed = self.entity_user_embed()
+        ego_embed = self.entity_user_embed.weight
         all_embed = [ego_embed]
 
         for idx, layer in enumerate(self.aggregator_layers):
@@ -222,9 +236,9 @@ class KGAT(nn.Module):
         r_embed = self.relation_embed(r)                                                # (kg_batch_size, relation_dim)
         W_r = self.trans_M[r]                                                           # (kg_batch_size, embed_dim, relation_dim)
 
-        h_embed = self.entity_user_embed()[h]                                             # (kg_batch_size, embed_dim)
-        pos_t_embed = self.entity_user_embed()[pos_t]                                     # (kg_batch_size, embed_dim)
-        neg_t_embed = self.entity_user_embed()[neg_t]                                     # (kg_batch_size, embed_dim)
+        h_embed = self.entity_user_embed(h)                                            # (kg_batch_size, embed_dim)
+        pos_t_embed = self.entity_user_embed(pos_t)                                     # (kg_batch_size, embed_dim)
+        neg_t_embed = self.entity_user_embed(neg_t)                                     # (kg_batch_size, embed_dim)
 
         r_mul_h = torch.bmm(h_embed.unsqueeze(1), W_r).squeeze(1)                       # (kg_batch_size, relation_dim)
         r_mul_pos_t = torch.bmm(pos_t_embed.unsqueeze(1), W_r).squeeze(1)               # (kg_batch_size, relation_dim)
@@ -248,8 +262,8 @@ class KGAT(nn.Module):
         r_embed = self.relation_embed.weight[r_idx]
         W_r = self.trans_M[r_idx]
 
-        h_embed = self.entity_user_embed()[h_list]
-        t_embed = self.entity_user_embed()[t_list]
+        h_embed = self.entity_user_embed(h_list)
+        t_embed = self.entity_user_embed(t_list)
 
         # Equation (4)
         r_mul_h = torch.matmul(h_embed, W_r)

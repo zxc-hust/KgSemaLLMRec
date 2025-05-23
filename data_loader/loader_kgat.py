@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from data_loader.loader_base import DataLoaderBase
+from data_loader.loader_base_kgat import DataLoaderBase
 
 from tqdm import tqdm
 

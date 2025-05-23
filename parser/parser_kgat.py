@@ -16,7 +16,7 @@ def parse_kgat_args():
                         help='0: No pretrain, 1: Pretrain with the learned embeddings, 2: Pretrain with stored model.')
     parser.add_argument('--pretrain_embedding_dir', nargs='?', default='datasets/pretrain/',
                         help='Path of learned embeddings.')
-    parser.add_argument('--pretrain_model_path', nargs='?', default='trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.001_pretrain1/model_epoch5.pth',
+    parser.add_argument('--pretrain_model_path', nargs='?', default='trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.001_pretrain1/model_epoch10.pth',
                         help='Path of stored model.')
 
     parser.add_argument('--cf_batch_size', type=int, default=1024,

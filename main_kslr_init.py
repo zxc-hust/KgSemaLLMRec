@@ -8,7 +8,7 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.KSLR5 import KGAT
+from model.KSLR_init import KGAT
 from parser.parser_kslr import *
 from utils.log_helper import *
 from utils.metrics import *
@@ -125,7 +125,7 @@ def train(args):
             cf_batch_pos_item = cf_batch_pos_item.to(device)
             cf_batch_neg_item = cf_batch_neg_item.to(device)
 
-            cf_loss, l2_loss, contrastive_loss, cf_batch_loss = model(cf_batch_user, cf_batch_pos_item, cf_batch_neg_item, mode='train_cf')
+            cf_batch_loss = model(cf_batch_user, cf_batch_pos_item, cf_batch_neg_item, mode='train_cf')
 
             if np.isnan(cf_batch_loss.cpu().detach().numpy()):
                 logging.info('ERROR (CF Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, iter, n_cf_batch))
@@ -138,9 +138,6 @@ def train(args):
 
             # Update progress bar
             cf_pbar.set_postfix({
-                'cf_loss': f'{cf_loss.item():.4f}',
-                'l2_loss': f'{l2_loss.item():.4f}',
-                'contrastive_loss': f'{contrastive_loss.item():.4f}',
                 'batch_loss': f'{cf_batch_loss.item():.4f}',
                 'avg_loss': f'{(cf_total_loss / iter):.4f}'
             })

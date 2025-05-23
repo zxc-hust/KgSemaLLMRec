@@ -8,13 +8,14 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.KSLR5 import KGAT
+from model.KSLR_con import KGAT
 from parser.parser_kslr import *
 from utils.log_helper import *
 from utils.metrics import *
 from utils.model_helper import *
 from data_loader.loader_kslr import DataLoaderKGAT
 
+import numpy as np
 
 def evaluate(model, dataloader, Ks, device):
     test_batch_size = dataloader.test_batch_size
@@ -82,7 +83,8 @@ def train(args):
 
     # construct model & optimizer
     llm_emb = torch.tensor(data.llm_emb)
-    model = KGAT(args, data.n_users, data.n_entities, data.n_relations, llm_emb, data.A_in)
+    trained_entity_embed = torch.tensor(np.load('datasets/pretrain/amazon-book/llm_entity_embed.npy'))
+    model = KGAT(args, data.n_users, data.n_entities, data.n_relations, llm_emb, trained_entity_embed, data.A_in)
     if args.use_pretrain == 1:
         model = load_model(model, args.pretrain_model_path)
         pre_epoch = int(args.pretrain_model_path.split("_epoch")[-1].split(".")[0])
@@ -137,6 +139,10 @@ def train(args):
             cf_total_loss += cf_batch_loss.item()
 
             # Update progress bar
+            # cf_pbar.set_postfix({
+            #     'batch_loss': f'{cf_batch_loss.item():.4f}',
+            #     'avg_loss': f'{(cf_total_loss / iter):.4f}'
+            # })
             cf_pbar.set_postfix({
                 'cf_loss': f'{cf_loss.item():.4f}',
                 'l2_loss': f'{l2_loss.item():.4f}',
