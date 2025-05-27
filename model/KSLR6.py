@@ -100,7 +100,6 @@ class KGAT(nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(self.embed_dim * 11 // 4, self.embed_dim * 11 // 4),
             nn.LeakyReLU(),
-            nn.Linear(self.embed_dim * 11 // 4, self.embed_dim * 11 // 4)
         )
         self._init_adapter_weights()
         self.user_embed = nn.Embedding(n_users, self.embed_dim)
@@ -453,8 +452,8 @@ class KGAT(nn.Module):
         llm_all_embed = self.calc_llm_embeddings()  
         user_embed = all_embed[user_ids]                # (n_users, concat_dim)
         item_embed = all_embed[item_ids]                # (n_items, concat_dim)
-        llm_user_embed = llm_all_embed[user_ids]        # (n_users, concat_dim)
-        llm_item_embed = llm_all_embed[item_ids]        # (n_items, concat_dim)
+        llm_user_embed = self.mlp(llm_all_embed[user_ids])        # (n_users, concat_dim)
+        llm_item_embed = self.mlp(llm_all_embed[item_ids])        # (n_items, concat_dim)
         ave_user_embed = (user_embed + llm_user_embed) / 2
         ave_item_embed = (item_embed + llm_item_embed) / 2
 

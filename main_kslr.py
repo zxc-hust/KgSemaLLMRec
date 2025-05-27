@@ -8,15 +8,15 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.KSLR5 import KGAT
+from model.KSLR6 import KGAT
 from parser.parser_kslr import *
 from utils.log_helper import *
 from utils.metrics import *
 from utils.model_helper import *
 from data_loader.loader_kslr import DataLoaderKGAT
 
-# 设置仅使用 GPU1（物理编号）
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# # 设置仅使用 GPU1（物理编号）
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def evaluate(model, dataloader, Ks, device):
