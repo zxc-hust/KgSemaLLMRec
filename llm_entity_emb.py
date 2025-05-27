@@ -81,7 +81,7 @@ def train(args):
 
     # construct model & optimizer
     model = KGAT(args, data.n_users, data.n_entities, data.n_relations, data.A_in, user_pre_embed, item_pre_embed)
-    model_path = 'trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.0001_pretrain1/model_epoch53.pth'
+    model_path = 'trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.0001_pretrain1/kgat_epoch53.pth'
     model = load_model(model, model_path)
 
     # 3. 获取前n_entities行的embedding

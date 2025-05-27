@@ -8,12 +8,15 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.KSLR5 import KGAT
+from model.KSLR4 import KGAT
 from parser.parser_kslr import *
 from utils.log_helper import *
 from utils.metrics import *
 from utils.model_helper import *
 from data_loader.loader_kslr import DataLoaderKGAT
+
+# 设置仅使用 GPU1（物理编号）
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def evaluate(model, dataloader, Ks, device):
@@ -70,7 +73,7 @@ def train(args):
 
     # GPU / CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    pre_epoch = 0
+    # pre_epoch = 0
 
     # load data
     data = DataLoaderKGAT(args, logging)
@@ -85,7 +88,7 @@ def train(args):
     model = KGAT(args, data.n_users, data.n_entities, data.n_relations, llm_emb, data.A_in)
     if args.use_pretrain == 1:
         model = load_model(model, args.pretrain_model_path)
-        pre_epoch = int(args.pretrain_model_path.split("_epoch")[-1].split(".")[0])
+        # pre_epoch = int(args.pretrain_model_path.split("_epoch")[-1].split(".")[0])
 
     model.to(device)
     logging.info(model)
@@ -105,7 +108,8 @@ def train(args):
     metrics_list = {k: {'precision': [], 'recall': [], 'ndcg': []} for k in Ks}
 
     # train model
-    for epoch in range(1 + pre_epoch, args.n_epoch + 1 + pre_epoch):
+    # for epoch in range(1 + pre_epoch, args.n_epoch + 1 + pre_epoch):
+    for epoch in range(1, args.n_epoch + 1):
     # for epoch in range(1 + pre_epoch, 2 + pre_epoch):
         time0 = time()
         model.train()

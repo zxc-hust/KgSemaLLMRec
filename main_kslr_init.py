@@ -8,7 +8,7 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.KSLR_init import KGAT
+from model.KSLR_init_xr import KGAT
 from parser.parser_kslr import *
 from utils.log_helper import *
 from utils.metrics import *
@@ -70,7 +70,7 @@ def train(args):
 
     # GPU / CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    pre_epoch = 0
+    # pre_epoch = 0
 
     # load data
     data = DataLoaderKGAT(args, logging)
@@ -81,11 +81,11 @@ def train(args):
     #     user_pre_embed, item_pre_embed = None, None
 
     # construct model & optimizer
-    llm_emb = torch.tensor(data.llm_emb)
-    model = KGAT(args, data.n_users, data.n_entities, data.n_relations, llm_emb, data.A_in)
+    # llm_emb = torch.tensor(data.llm_emb)
+    model = KGAT(args, data.n_users, data.n_entities, data.n_relations, data.A_in)
     if args.use_pretrain == 1:
         model = load_model(model, args.pretrain_model_path)
-        pre_epoch = int(args.pretrain_model_path.split("_epoch")[-1].split(".")[0])
+        # pre_epoch = int(args.pretrain_model_path.split("_epoch")[-1].split(".")[0])
 
     model.to(device)
     logging.info(model)
@@ -105,7 +105,8 @@ def train(args):
     metrics_list = {k: {'precision': [], 'recall': [], 'ndcg': []} for k in Ks}
 
     # train model
-    for epoch in range(1 + pre_epoch, args.n_epoch + 1 + pre_epoch):
+    # for epoch in range(1 + pre_epoch, args.n_epoch + 1 + pre_epoch):
+    for epoch in range(1, args.n_epoch + 1):
     # for epoch in range(1 + pre_epoch, 2 + pre_epoch):
         time0 = time()
         model.train()

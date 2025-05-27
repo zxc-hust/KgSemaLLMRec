@@ -92,8 +92,6 @@ class KGAT(nn.Module):
 
         self.register_buffer('llm_emb', llm_emb.float())
 
-        # checkpoint = torch.load('trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.0001_pretrain_model1/model_epoch74.pth', map_location='cpu')
-        
         self.adapter = nn.Sequential(
             nn.Linear(self.llm_dim, min(256,(self.llm_dim + self.embed_dim) // 2)),
             nn.LeakyReLU(),
@@ -190,7 +188,7 @@ class KGAT(nn.Module):
         ego_embed = self.llm_entity_user_embed()
         all_embed = [ego_embed]
 
-        for idx, layer in enumerate(self.aggregator_layers):
+        for idx, layer in enumerate(self.llm_aggregator_layers):
             ego_embed = layer(ego_embed, self.llm_A_in)
             norm_embed = F.normalize(ego_embed, p=2, dim=1)
             all_embed.append(norm_embed)

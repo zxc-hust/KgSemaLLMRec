@@ -32,30 +32,52 @@ class DataLoaderBase(object):
         self.load_llm_emb()
 
 
+    # def load_cf(self, filename):
+    #     user = []
+    #     item = []
+    #     user_dict = dict()
+
+    #     # lines = open(filename, 'r').readlines()
+    #     # for l in lines:
+    #     with open(filename, 'r') as f:
+    #         total_lines = sum(1 for _ in f)
+
+    #     # 第二次读取：实际处理数据
+    #     with open(filename, 'r') as f:
+    #         for line in tqdm(f, total=total_lines, desc=f"加载 {filename}"):
+    #             tmp = line.strip()
+    #             inter = [int(i) for i in tmp.split()]
+
+    #             if len(inter) > 1:
+    #                 user_id, item_ids = inter[0], inter[1:]
+    #                 item_ids = list(set(item_ids))
+
+    #                 for item_id in item_ids:
+    #                     user.append(user_id)
+    #                     item.append(item_id)
+    #                 user_dict[user_id] = item_ids
+
+    #     user = np.array(user, dtype=np.int32)
+    #     item = np.array(item, dtype=np.int32)
+    #     return (user, item), user_dict
     def load_cf(self, filename):
         user = []
         item = []
         user_dict = dict()
 
-        # lines = open(filename, 'r').readlines()
-        # for l in lines:
-        with open(filename, 'r') as f:
-            total_lines = sum(1 for _ in f)
+        lines = open(filename, 'r').readlines()
+        for l in lines:
+            tmp = l.strip()
+            inter = [int(i) for i in tmp.split()]
 
-        # 第二次读取：实际处理数据
-        with open(filename, 'r') as f:
-            for line in tqdm(f, total=total_lines, desc=f"加载 {filename}"):
-                tmp = line.strip()
-                inter = [int(i) for i in tmp.split()]
+            if len(inter) > 1:
+                user_id, item_ids = inter[0], inter[1:]
+                item_ids = list(set(item_ids))
 
-                if len(inter) > 1:
-                    user_id, item_ids = inter[0], inter[1:]
-                    item_ids = list(set(item_ids))
-
-                    for item_id in item_ids:
-                        user.append(user_id)
-                        item.append(item_id)
-                    user_dict[user_id] = item_ids
+                for item_id in item_ids:
+                    user.append(user_id)
+                    item.append(item_id)
+                user_dict[user_id] = item_ids
 
         user = np.array(user, dtype=np.int32)
         item = np.array(item, dtype=np.int32)

@@ -92,7 +92,7 @@ class KGAT(nn.Module):
 
         self.register_buffer('llm_emb', llm_emb.float())
 
-        checkpoint = torch.load('trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.0001_pretrain_model1/model_epoch74.pth', map_location='cpu')
+        checkpoint = torch.load('trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.0001_pretrain_model1/pretrained_model_epoch74.pth', map_location='cpu')
         
         self.adapter = nn.Sequential(
             nn.Linear(self.llm_dim, min(256,(self.llm_dim + self.embed_dim) // 2)),

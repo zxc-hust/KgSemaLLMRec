@@ -185,6 +185,40 @@ class KGAT(nn.Module):
         all_embed = torch.cat(all_embed, dim=1)         # (n_users + n_entities, concat_dim)
         return all_embed
 
+    def info_nce_loss(self, embed_1, embed_2, temperature=0.1):
+        """
+        计算 InfoNCE 对比损失（NT-Xent loss）
+        
+        Args:
+            embed_1: (batch_size, embed_dim)  第一组嵌入（如 ID 嵌入）
+            embed_2: (batch_size, embed_dim)  第二组嵌入（如 LLM 嵌入）
+            temperature: float, 温度系数（默认 0.1）
+            
+        Returns:
+            nce_loss: 对比损失
+        """
+        batch_size = embed_1.size(0)
+        
+        # 计算余弦相似度（归一化后点积）
+        embed_1 = F.normalize(embed_1, dim=1)  # (batch_size, embed_dim)
+        embed_2 = F.normalize(embed_2, dim=1)  # (batch_size, embed_dim)
+        
+        # 正样本相似度（对角线元素）
+        sim_pos = torch.sum(embed_1 * embed_2, dim=1) / temperature  # (batch_size)
+        
+        # 负样本相似度（矩阵乘法）
+        sim_neg = torch.mm(embed_1, embed_2.T) / temperature  # (batch_size, batch_size)
+        
+        # 排除自身对比（对角线置为 -inf）
+        mask = torch.eye(batch_size, dtype=torch.bool, device=embed_1.device)
+        sim_neg = sim_neg.masked_fill(mask, -float('inf'))
+        
+        # 计算 InfoNCE loss
+        logits = torch.cat([sim_pos.unsqueeze(1), sim_neg], dim=1)  # (batch_size, 1 + batch_size)
+        labels = torch.zeros(batch_size, dtype=torch.long, device=embed_1.device)  # 正样本在 0 位置
+        nce_loss = F.cross_entropy(logits, labels)
+        
+        return nce_loss
 
     def calc_cf_loss(self, user_ids, item_pos_ids, item_neg_ids):
         """
@@ -218,12 +252,24 @@ class KGAT(nn.Module):
         entity_user_emb = self.entity_user_embed()
         trained_entity_user_embed = self.trained_entity_embed
         entity_user_emb = F.normalize(entity_user_emb, p=2, dim=1)
-        trained_entity_user_embed = F.normalize(trained_entity_user_embed, p=2, dim=1)
-        # contrastive_loss = F.mse_loss(entity_user_emb, trained_entity_user_embed)
+        # trained_entity_user_embed = F.normalize(trained_entity_user_embed, p=2, dim=1)
+        # user_emb = entity_user_emb[user_ids]                            # (cf_batch_size, concat_dim)
+        # item_pos_emb =  trained_entity_user_embed[item_pos_ids]                    # (cf_batch_size, concat_dim)
+        # item_neg_emb =  trained_entity_user_embed[item_neg_ids]                    # (cf_batch_size, concat_dim)
+        # trained_user_emb = trained_entity_user_embed[user_ids]
+        # trained_item_pos_emb = trained_entity_user_embed[item_pos_ids]
+        # trained_item_neg_emb = trained_entity_user_embed[item_neg_ids]
+        # user_contrastive_loss = self.info_nce_loss(user_emb, trained_user_emb)
+        # item_pos_contrastive_loss = self.info_nce_loss(item_pos_emb, trained_item_pos_emb)
+        # item_neg_contrastive_loss = self.info_nce_loss(item_neg_emb, trained_item_neg_emb)
+        # contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
+
+
+    #    # contrastive_loss = F.mse_loss(entity_user_emb, trained_entity_user_embed)
         contrastive_loss = 1 - F.cosine_similarity(entity_user_emb, trained_entity_user_embed).mean()
 
-        loss = cf_loss + self.cf_l2loss_lambda * l2_loss + 0.1 * contrastive_loss
-        return cf_loss, self.cf_l2loss_lambda * l2_loss, 0.1 * contrastive_loss, loss
+        loss = cf_loss + self.cf_l2loss_lambda * l2_loss + 0.04 * contrastive_loss
+        return cf_loss, self.cf_l2loss_lambda * l2_loss, 0.04 * contrastive_loss, loss
    
     def calc_kg_loss(self, h, r, pos_t, neg_t):
         """

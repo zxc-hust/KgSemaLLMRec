@@ -13,3 +13,12 @@ datasets
 temporary/
 freebase-rdf-latest.gz
 Meta-Llama-3-8B-Instruct
+kgat
+kslr_adapter
+kslr_adapter_con
+kslr_adapter0
+kslr_init
+kslr_init_xr
+kslr_init_xr0
+kslr4
+kslr5
