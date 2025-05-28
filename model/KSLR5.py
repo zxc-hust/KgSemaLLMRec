@@ -276,9 +276,10 @@ class KGAT(nn.Module):
         cf_loss = torch.mean(cf_loss)
 
         user_contrastive_loss = self.info_nce_loss(user_embed, llm_user_embed)
-        item_pos_contrastive_loss = self.info_nce_loss(item_pos_embed, llm_item_pos_embed)
-        item_neg_contrastive_loss = self.info_nce_loss(item_neg_embed, llm_item_neg_embed)
-        contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
+        # item_pos_contrastive_loss = self.info_nce_loss(item_pos_embed, llm_item_pos_embed)
+        # item_neg_contrastive_loss = self.info_nce_loss(item_neg_embed, llm_item_neg_embed)
+        # contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
+        contrastive_loss = user_contrastive_loss
 
         l2_loss = _L2_loss_mean(ave_user_embed) + _L2_loss_mean(ave_item_pos_embed) + _L2_loss_mean(ave_item_neg_embed)
 

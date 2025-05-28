@@ -8,7 +8,7 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.KSLR6 import KGAT
+from model.KSLR5 import KGAT
 from parser.parser_kslr import *
 from utils.log_helper import *
 from utils.metrics import *
