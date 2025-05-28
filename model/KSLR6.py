@@ -217,6 +217,54 @@ class KGAT(nn.Module):
         all_embed = torch.cat(all_embed, dim=1)         # (n_users + n_entities, concat_dim)
         return all_embed
 
+    def mk_mmd_loss(self, embed_1, embed_2, kernel_mul=2.0, kernel_num=5, normalize=True):
+        """
+        计算多核MMD（Multiple Kernel Maximum Mean Discrepancy）
+        
+        Args:
+            embed_1: (batch_size, embed_dim)  第一组嵌入（如ID嵌入）
+            embed_2: (batch_size, embed_dim)  第二组嵌入（如LLM嵌入）
+            kernel_mul: 核函数的带宽倍数
+            kernel_num: 使用的核函数数量
+            
+        Returns:
+            mmd_loss: MK-MMD损失值
+        """
+        if normalize:
+            embed_1 = F.normalize(embed_1, p=2, dim=1)  # L2归一化
+            embed_2 = F.normalize(embed_2, p=2, dim=1)
+        batch_size = embed_1.size(0)
+        
+        # 合并两组嵌入以计算核带宽（bandwidth）
+        all_embeddings = torch.cat([embed_1, embed_2], dim=0)
+        distances = torch.cdist(all_embeddings, all_embeddings, p=2)  # 计算L2距离矩阵
+        bandwidth = torch.median(distances)  # 使用中位数作为基准带宽
+        
+        # 初始化多核权重和带宽列表
+        bandwidths = [bandwidth * (kernel_mul ** i) for i in range(kernel_num)]
+        
+        # 计算MMD
+        loss = 0.0
+        for bw in bandwidths:
+            # 计算核矩阵（K_xx, K_yy, K_xy）
+            K_xx = self.gaussian_kernel(embed_1, embed_1, bw)
+            K_yy = self.gaussian_kernel(embed_2, embed_2, bw)
+            K_xy = self.gaussian_kernel(embed_1, embed_2, bw)
+            
+            # MMD公式：K_xx + K_yy - 2*K_xy
+            mmd = K_xx.mean() + K_yy.mean() - 2 * K_xy.mean()
+            loss += mmd
+        
+        # 多核加权平均（简化处理：直接求和）
+        return loss / kernel_num
+
+    def gaussian_kernel(self, x, y, bandwidth):
+        """
+        计算高斯核矩阵（RBF核）
+        """
+        pairwise_dist = torch.cdist(x, y, p=2) ** 2
+        return torch.exp(-pairwise_dist / (2 * bandwidth ** 2))
+
     def info_nce_loss(self, embed_1, embed_2, temperature=0.1):
         """
         计算 InfoNCE 对比损失（NT-Xent loss）
@@ -269,9 +317,12 @@ class KGAT(nn.Module):
         llm_item_pos_embed = self.mlp(llm_all_embed[item_pos_ids])                    # (cf_batch_size, concat_dim)
         llm_item_neg_embed = self.mlp(llm_all_embed[item_neg_ids])                    # (cf_batch_size, concat_dim)
 
-        ave_user_embed = (user_embed + llm_user_embed) / 2
-        ave_item_pos_embed = (item_pos_embed + llm_item_pos_embed) / 2
-        ave_item_neg_embed = (item_neg_embed + llm_item_neg_embed) / 2
+        # ave_user_embed = (user_embed + llm_user_embed) / 2
+        # ave_item_pos_embed = (item_pos_embed + llm_item_pos_embed) / 2
+        # ave_item_neg_embed = (item_neg_embed + llm_item_neg_embed) / 2
+        ave_user_embed = torch.cat([user_embed, llm_user_embed], dim=1)     # (cf_batch_size, concat_dim)
+        ave_item_pos_embed = torch.cat([item_pos_embed, llm_item_pos_embed], dim=1)  # (cf_batch_size, concat_dim)
+        ave_item_neg_embed = torch.cat([item_neg_embed, llm_item_neg_embed], dim=1)  # (cf_batch_size, concat_dim)
 
         # Equation (12)
         pos_score = torch.sum(ave_user_embed * ave_item_pos_embed, dim=1)   # (cf_batch_size)
@@ -282,15 +333,21 @@ class KGAT(nn.Module):
         cf_loss = (-1.0) * F.logsigmoid(pos_score - neg_score)
         cf_loss = torch.mean(cf_loss)
 
-        user_contrastive_loss = self.info_nce_loss(user_embed, llm_user_embed)
-        item_pos_contrastive_loss = self.info_nce_loss(item_pos_embed, llm_item_pos_embed)
-        item_neg_contrastive_loss = self.info_nce_loss(item_neg_embed, llm_item_neg_embed)
-        contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
+        # user_contrastive_loss = self.info_nce_loss(user_embed, llm_user_embed)
+        # item_pos_contrastive_loss = self.info_nce_loss(item_pos_embed, llm_item_pos_embed)
+        # item_neg_contrastive_loss = self.info_nce_loss(item_neg_embed, llm_item_neg_embed)
+        # contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
+        # 原对比损失（替换为MK-MMD）
+        user_mmd_loss = self.mk_mmd_loss(user_embed, llm_user_embed)
+        item_pos_mmd_loss = self.mk_mmd_loss(item_pos_embed, llm_item_pos_embed)
+        item_neg_mmd_loss = self.mk_mmd_loss(item_neg_embed, llm_item_neg_embed)
+        contrastive_loss = (user_mmd_loss + item_pos_mmd_loss + item_neg_mmd_loss) / 3
+        # contrastive_loss = user_contrastive_loss
 
         l2_loss = _L2_loss_mean(ave_user_embed) + _L2_loss_mean(ave_item_pos_embed) + _L2_loss_mean(ave_item_neg_embed)
 
-        loss = cf_loss + self.cf_l2loss_lambda * l2_loss + 0.02 * contrastive_loss
-        return cf_loss, self.cf_l2loss_lambda * l2_loss, 0.02 * contrastive_loss, loss
+        loss = cf_loss + self.cf_l2loss_lambda * l2_loss + 3 * contrastive_loss
+        return cf_loss, self.cf_l2loss_lambda * l2_loss, 3 * contrastive_loss, loss
 
 
     def calc_kg_loss(self, h, r, pos_t, neg_t):
@@ -454,8 +511,10 @@ class KGAT(nn.Module):
         item_embed = all_embed[item_ids]                # (n_items, concat_dim)
         llm_user_embed = self.mlp(llm_all_embed[user_ids])        # (n_users, concat_dim)
         llm_item_embed = self.mlp(llm_all_embed[item_ids])        # (n_items, concat_dim)
-        ave_user_embed = (user_embed + llm_user_embed) / 2
-        ave_item_embed = (item_embed + llm_item_embed) / 2
+        # ave_user_embed = (user_embed + llm_user_embed) / 2
+        # ave_item_embed = (item_embed + llm_item_embed) / 2
+        ave_user_embed = torch.cat([user_embed, llm_user_embed], dim=1)
+        ave_item_embed = torch.cat([item_embed, llm_item_embed], dim=1)
 
         # Equation (12)
         cf_score = torch.matmul(ave_user_embed, ave_item_embed.transpose(0, 1))    # (n_users, n_items)

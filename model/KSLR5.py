@@ -326,15 +326,15 @@ class KGAT(nn.Module):
         cf_loss = (-1.0) * F.logsigmoid(pos_score - neg_score)
         cf_loss = torch.mean(cf_loss)
 
-        user_contrastive_loss = self.info_nce_loss(user_embed, llm_user_embed)
-        item_pos_contrastive_loss = self.info_nce_loss(item_pos_embed, llm_item_pos_embed)
-        item_neg_contrastive_loss = self.info_nce_loss(item_neg_embed, llm_item_neg_embed)
-        contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
+        # user_contrastive_loss = self.info_nce_loss(user_embed, llm_user_embed)
+        # item_pos_contrastive_loss = self.info_nce_loss(item_pos_embed, llm_item_pos_embed)
+        # item_neg_contrastive_loss = self.info_nce_loss(item_neg_embed, llm_item_neg_embed)
+        # contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
         # 原对比损失（替换为MK-MMD）
-        # user_mmd_loss = self.mk_mmd_loss(user_embed, llm_user_embed)
-        # item_pos_mmd_loss = self.mk_mmd_loss(item_pos_embed, llm_item_pos_embed)
-        # item_neg_mmd_loss = self.mk_mmd_loss(item_neg_embed, llm_item_neg_embed)
-        # contrastive_loss = (user_mmd_loss + item_pos_mmd_loss + item_neg_mmd_loss) / 3
+        user_mmd_loss = self.mk_mmd_loss(user_embed, llm_user_embed)
+        item_pos_mmd_loss = self.mk_mmd_loss(item_pos_embed, llm_item_pos_embed)
+        item_neg_mmd_loss = self.mk_mmd_loss(item_neg_embed, llm_item_neg_embed)
+        contrastive_loss = (user_mmd_loss + item_pos_mmd_loss + item_neg_mmd_loss) / 3
         # contrastive_loss = user_contrastive_loss
 
         l2_loss = _L2_loss_mean(ave_user_embed) + _L2_loss_mean(ave_item_pos_embed) + _L2_loss_mean(ave_item_neg_embed)
