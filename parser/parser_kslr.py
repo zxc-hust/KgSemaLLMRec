@@ -12,14 +12,14 @@ def parse_kgat_args():
     parser.add_argument('--data_dir', nargs='?', default='datasets/',
                         help='Input data path.')
 
-    # parser.add_argument('--use_pretrain', type=int, default=1,
-    #                     help='0: No pretrain, 1: Pretrain with the learned embeddings, 2: Pretrain with stored model.')
+    parser.add_argument('--use_pretrain', type=int, default=1,
+                        help='0: No pretrain, 1: Pretrain with stored model, 2: Pretrain with the learned embeddings.')
     
-    parser.add_argument('--use_pretrain', type=int, default=0,
-                        help='0: No pretrain, 1: Pretrain with stored model.')
-    # parser.add_argument('--pretrain_embedding_dir', nargs='?', default='datasets/pretrain/',
-    #                     help='Path of learned embeddings.')
-    parser.add_argument('--pretrain_model_path', nargs='?', default='trained_model/KGAT/amazon-book/embed-dim64_relation-dim64_random-walk_bi-interaction_64-32-16_lr0.001_pretrain_model0/model_epoch100.pth',
+    # parser.add_argument('--use_pretrain', type=int, default=1,
+    #                     help='0: No pretrain, 1: Pretrain with stored model.')
+    parser.add_argument('--pretrain_embedding_dir', nargs='?', default='datasets/pretrain/',
+                        help='Path of learned embeddings.')
+    parser.add_argument('--pretrain_model_path', nargs='?', default='kslr7/42_pre/best.pth',
                         help='Path of stored model.')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='Learning rate.')

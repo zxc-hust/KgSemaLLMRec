@@ -15,7 +15,7 @@ class DataLoaderBase(object):
         self.args = args
         self.data_name = args.data_name
         self.use_pretrain = args.use_pretrain
-        # self.pretrain_embedding_dir = args.pretrain_embedding_dir
+        self.pretrain_embedding_dir = args.pretrain_embedding_dir
         self.llm_embedding_dir = args.llm_embedding_dir
 
         self.data_dir = os.path.join(args.data_dir, args.data_name)
@@ -27,8 +27,8 @@ class DataLoaderBase(object):
         self.cf_test_data, self.test_user_dict = self.load_cf(self.test_file)
         self.statistic_cf()
 
-        # if self.use_pretrain == 1:
-        #     self.load_pretrained_data()
+        if self.use_pretrain == 2:
+            self.load_pretrained_data()
         self.load_llm_emb()
 
 
@@ -221,6 +221,19 @@ class DataLoaderBase(object):
         llm_emb_path = '%s/%s.npy' % (self.llm_embedding_dir, 'llm_emb_748d')
         llm_emb = np.load(llm_emb_path)
         self.llm_emb = llm_emb
+
+    def load_pretrained_data(self):
+        pre_model = 'mf'
+        pretrain_path = '%s/%s/%s.npz' % (self.pretrain_embedding_dir, self.data_name, pre_model)
+        pretrain_data = np.load(pretrain_path)
+        self.user_pre_embed = pretrain_data['user_embed']
+        self.item_pre_embed = pretrain_data['item_embed']
+
+        assert self.user_pre_embed.shape[0] == self.n_users
+        assert self.item_pre_embed.shape[0] == self.n_items
+        assert self.user_pre_embed.shape[1] == self.args.embed_dim
+        assert self.item_pre_embed.shape[1] == self.args.embed_dim
+
 # import os
 # import time
 # import random

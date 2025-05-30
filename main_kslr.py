@@ -8,15 +8,15 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
-from model.KSLR5 import KGAT
+from model.KSLR7 import KGAT
 from parser.parser_kslr import *
 from utils.log_helper import *
 from utils.metrics import *
 from utils.model_helper import *
 from data_loader.loader_kslr import DataLoaderKGAT
 
-# # 设置仅使用 GPU1（物理编号）
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# 设置仅使用 GPU1（物理编号）
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def evaluate(model, dataloader, Ks, device):
@@ -77,15 +77,15 @@ def train(args):
 
     # load data
     data = DataLoaderKGAT(args, logging)
-    # if args.use_pretrain == 1:
-    #     user_pre_embed = torch.tensor(data.user_pre_embed)
-    #     item_pre_embed = torch.tensor(data.item_pre_embed)
-    # else:
-    #     user_pre_embed, item_pre_embed = None, None
+    if args.use_pretrain == 2:
+        user_pre_embed = torch.tensor(data.user_pre_embed)
+        item_pre_embed = torch.tensor(data.item_pre_embed)
+    else:
+        user_pre_embed, item_pre_embed = None, None
 
     # construct model & optimizer
     llm_emb = torch.tensor(data.llm_emb)
-    model = KGAT(args, data.n_users, data.n_entities, data.n_relations, llm_emb, data.A_in)
+    model = KGAT(args, data.n_users, data.n_entities, data.n_relations, llm_emb, data.A_in, user_pre_embed, item_pre_embed)
     if args.use_pretrain == 1:
         model = load_model(model, args.pretrain_model_path)
         # pre_epoch = int(args.pretrain_model_path.split("_epoch")[-1].split(".")[0])
@@ -129,7 +129,7 @@ def train(args):
             cf_batch_pos_item = cf_batch_pos_item.to(device)
             cf_batch_neg_item = cf_batch_neg_item.to(device)
 
-            cf_loss, l2_loss, contrastive_loss, cf_batch_loss = model(cf_batch_user, cf_batch_pos_item, cf_batch_neg_item, mode='train_cf')
+            cf_loss, l2_loss, contrastive_loss, gate_reg_loss, cf_batch_loss = model(cf_batch_user, cf_batch_pos_item, cf_batch_neg_item, mode='train_cf')
 
             if np.isnan(cf_batch_loss.cpu().detach().numpy()):
                 logging.info('ERROR (CF Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, iter, n_cf_batch))
@@ -145,6 +145,7 @@ def train(args):
                 'cf_loss': f'{cf_loss.item():.4f}',
                 'l2_loss': f'{l2_loss.item():.4f}',
                 'contrastive_loss': f'{contrastive_loss.item():.4f}',
+                'gate_reg_loss': f'{gate_reg_loss.item():.4f}',
                 'batch_loss': f'{cf_batch_loss.item():.4f}',
                 'avg_loss': f'{(cf_total_loss / iter):.4f}'
             })
