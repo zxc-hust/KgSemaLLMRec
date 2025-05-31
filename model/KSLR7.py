@@ -581,26 +581,62 @@ class KGAT(nn.Module):
         llm_A_in = torch.sparse.softmax(llm_A_in.cpu(), dim=1)
         self.llm_A_in.data = llm_A_in.to(device)
 
+    # def calc_score(self, user_ids, item_ids):
+    #     """
+    #     user_ids:  (n_users)
+    #     item_ids:  (n_items)
+    #     """
+    #     all_embed = self.calc_cf_embeddings()           # (n_users + n_entities, concat_dim)
+    #     llm_all_embed = self.calc_llm_embeddings()  
+    #     user_embed = all_embed[user_ids]                # (n_users, concat_dim)
+    #     item_embed = all_embed[item_ids]                # (n_items, concat_dim)
+    #     llm_user_embed = llm_all_embed[user_ids]        # (n_users, concat_dim)
+    #     llm_item_embed = llm_all_embed[item_ids]        # (n_items, concat_dim)
+    #     # ave_user_embed = (user_embed + llm_user_embed) / 2
+    #     # ave_item_embed = (item_embed + llm_item_embed) / 2
+    #     ave_user_embed = torch.cat([user_embed, llm_user_embed], dim=1)
+    #     ave_item_embed = torch.cat([item_embed, llm_item_embed], dim=1)
+
+    #     # Equation (12)
+    #     cf_score = torch.matmul(ave_user_embed, ave_item_embed.transpose(0, 1))    # (n_users, n_items)
+    #     return cf_score
+
     def calc_score(self, user_ids, item_ids):
         """
         user_ids:  (n_users)
         item_ids:  (n_items)
         """
+        # 获取所有嵌入
         all_embed = self.calc_cf_embeddings()           # (n_users + n_entities, concat_dim)
-        llm_all_embed = self.calc_llm_embeddings()  
+        llm_all_embed = self.calc_llm_embeddings()      # (n_users + n_entities, concat_dim)
+        
+        # 提取用户和物品嵌入
         user_embed = all_embed[user_ids]                # (n_users, concat_dim)
         item_embed = all_embed[item_ids]                # (n_items, concat_dim)
         llm_user_embed = llm_all_embed[user_ids]        # (n_users, concat_dim)
         llm_item_embed = llm_all_embed[item_ids]        # (n_items, concat_dim)
-        # ave_user_embed = (user_embed + llm_user_embed) / 2
-        # ave_item_embed = (item_embed + llm_item_embed) / 2
-        ave_user_embed = torch.cat([user_embed, llm_user_embed], dim=1)
-        ave_item_embed = torch.cat([item_embed, llm_item_embed], dim=1)
-
-        # Equation (12)
-        cf_score = torch.matmul(ave_user_embed, ave_item_embed.transpose(0, 1))    # (n_users, n_items)
-        return cf_score
-
+        
+        # 获取门控权重（与训练时一致）
+        _, user_gate = self.gated_fusion(user_embed, llm_user_embed, user_ids, 'user')  # (n_users, 1)
+        _, item_gate = self.gated_fusion(item_embed, llm_item_embed, item_ids, 'item')  # (n_items, 1)
+        
+        # 计算CF部分分数矩阵
+        cf_score_matrix = torch.matmul(user_embed, item_embed.transpose(0, 1))  # (n_users, n_items)
+        
+        # 计算LLM部分分数矩阵
+        llm_score_matrix = torch.matmul(llm_user_embed, llm_item_embed.transpose(0, 1))  # (n_users, n_items)
+        
+        # 扩展门控权重
+        user_gate_expanded = user_gate.expand(-1, item_gate.size(0))  # (10000, 24915)
+        item_gate_expanded = item_gate.permute(1, 0).expand(user_gate.size(0), -1)  # (10000, 24915)
+        
+        # 计算融合权重矩阵 (对每个用户-物品对取门控权重的平均)
+        gate_matrix = (user_gate_expanded + item_gate_expanded) / 2  # (n_users, n_items)
+        
+        # 动态融合两部分分数
+        final_score = gate_matrix * llm_score_matrix + (1 - gate_matrix) * cf_score_matrix
+        
+        return final_score  # (n_users, n_items)
 
     def forward(self, *input, mode):
         if mode == 'train_cf':

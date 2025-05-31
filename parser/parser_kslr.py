@@ -21,7 +21,7 @@ def parse_kgat_args():
                         help='Path of learned embeddings.')
     parser.add_argument('--pretrain_model_path', nargs='?', default='kslr7/42_pre/best.pth',
                         help='Path of stored model.')
-    parser.add_argument('--lr', type=float, default=0.001,
+    parser.add_argument('--lr', type=float, default=0.0001,
                         help='Learning rate.')
     
     parser.add_argument('--llm_embedding_dir', nargs='?', default='datasets/amazon-book',

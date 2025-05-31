@@ -16,7 +16,7 @@ from utils.model_helper import *
 from data_loader.loader_kslr import DataLoaderKGAT
 
 # 设置仅使用 GPU1（物理编号）
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def evaluate(model, dataloader, Ks, device):
@@ -118,7 +118,7 @@ def train(args):
         time1 = time()
         cf_total_loss = 0
         n_cf_batch = data.n_cf_train // data.cf_batch_size + 1
-
+        # n_cf_batch = 1
         # for iter in range(1, n_cf_batch + 1):
         # CF training with progress bar
         cf_pbar = tqdm(range(1, n_cf_batch + 1), desc=f'CF Epoch {epoch}', unit='batch')
@@ -162,6 +162,7 @@ def train(args):
         time3 = time()
         kg_total_loss = 0
         n_kg_batch = data.n_kg_train // data.kg_batch_size + 1
+        # n_kg_batch = 1
 
         # for iter in range(1, n_kg_batch + 1):
         # KG training with progress bar
