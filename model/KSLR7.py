@@ -147,6 +147,8 @@ class KGAT(nn.Module):
 
         self.kg_l2loss_lambda = args.kg_l2loss_lambda
         self.cf_l2loss_lambda = args.cf_l2loss_lambda
+        self.alpha = args.alpha
+        self.beta = args.beta
 
         self.register_buffer('llm_emb', llm_emb.float())
 
@@ -427,8 +429,8 @@ class KGAT(nn.Module):
         gate_reg_loss = (torch.mean(-torch.log(user_gate + 1e-5) - torch.log(1 - user_gate + 1e-5)) + \
                         torch.mean(-torch.log(item_pos_gate + 1e-5) - torch.log(1 - item_pos_gate + 1e-5)) + \
                         torch.mean(-torch.log(item_neg_gate + 1e-5) - torch.log(1 - item_neg_gate + 1e-5))) / 3
-        loss = cf_loss + self.cf_l2loss_lambda * l2_loss + 3 * contrastive_loss + 0.002 * gate_reg_loss
-        return cf_loss, self.cf_l2loss_lambda * l2_loss, 3 * contrastive_loss, 0.002 * gate_reg_loss, loss
+        loss = cf_loss + self.cf_l2loss_lambda * l2_loss + self.alpha * contrastive_loss + self.beta * gate_reg_loss
+        return cf_loss, self.cf_l2loss_lambda * l2_loss, self.alpha * contrastive_loss, self.beta * gate_reg_loss, loss
 
 
     def calc_kg_loss(self, h, r, pos_t, neg_t):

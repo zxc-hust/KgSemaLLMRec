@@ -52,6 +52,8 @@ def parse_kgat_args():
                         help='Lambda when calculating KG l2 loss.')
     parser.add_argument('--cf_l2loss_lambda', type=float, default=1e-5,
                         help='Lambda when calculating CF l2 loss.')
+    parser.add_argument('--alpha', type=float, default=3, help='hyper-Param of contrastive loss.')
+    parser.add_argument('--beta', type=float, default=0.003, help='hyper-Param of gate loss.')
 
     parser.add_argument('--n_epoch', type=int, default=500,
                         help='Number of epoch.')
