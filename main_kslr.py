@@ -15,10 +15,6 @@ from utils.metrics import *
 from utils.model_helper import *
 from data_loader.loader_kslr import DataLoaderKGAT
 
-# 设置仅使用 GPU1（物理编号）
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
-
 def evaluate(model, dataloader, Ks, device):
     test_batch_size = dataloader.test_batch_size
     train_user_dict = dataloader.train_user_dict
@@ -225,7 +221,7 @@ def train(args):
                 break
 
             if metrics_list[k_min]['recall'].index(best_recall) == len(epoch_list) - 1:
-                save_model(model, args.save_dir, args.beta, epoch, best_epoch)
+                save_model(model, args.save_dir, args.alpha, args.beta, epoch, best_epoch)
                 logging.info('Save model on epoch {:04d}!'.format(epoch))
                 best_epoch = epoch
 
@@ -272,6 +268,7 @@ def predict(args):
 
 if __name__ == '__main__':
     args = parse_kgat_args()
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.cuda)
     train(args)
     # predict(args)
 

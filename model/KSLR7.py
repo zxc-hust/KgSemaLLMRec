@@ -41,7 +41,7 @@ class GatedFusion(nn.Module):
             else:  # item
                 id_str = str(id)
                 # pop = self.item_popularity.get(id_str, 0) / self.max_item_pop
-                pop = np.log(1 + self.item_popularity.get(id_str, 0)) / np.log(1 + self.max_user_pop)
+                pop = np.log(1 + self.item_popularity.get(id_str, 0)) / np.log(1 + self.max_item_pop)
             pop_values.append(pop)
         return torch.FloatTensor(pop_values).unsqueeze(1).to(ids.device)  # (batch_size, 1)
     
@@ -415,15 +415,15 @@ class KGAT(nn.Module):
         cf_loss = (-1.0) * F.logsigmoid(pos_score - neg_score)
         cf_loss = torch.mean(cf_loss)
 
-        # user_contrastive_loss = self.info_nce_loss(user_embed, llm_user_embed)
-        # item_pos_contrastive_loss = self.info_nce_loss(item_pos_embed, llm_item_pos_embed)
-        # item_neg_contrastive_loss = self.info_nce_loss(item_neg_embed, llm_item_neg_embed)
-        # contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
+        user_contrastive_loss = self.info_nce_loss(user_embed, llm_user_embed)
+        item_pos_contrastive_loss = self.info_nce_loss(item_pos_embed, llm_item_pos_embed)
+        item_neg_contrastive_loss = self.info_nce_loss(item_neg_embed, llm_item_neg_embed)
+        contrastive_loss = (user_contrastive_loss + item_pos_contrastive_loss + item_neg_contrastive_loss) / 3
         # 原对比损失（替换为MK-MMD）
-        user_mmd_loss = self.mk_mmd_loss(user_embed, llm_user_embed)
-        item_pos_mmd_loss = self.mk_mmd_loss(item_pos_embed, llm_item_pos_embed)
-        item_neg_mmd_loss = self.mk_mmd_loss(item_neg_embed, llm_item_neg_embed)
-        contrastive_loss = (user_mmd_loss + item_pos_mmd_loss + item_neg_mmd_loss) / 3
+        # user_mmd_loss = self.mk_mmd_loss(user_embed, llm_user_embed)
+        # item_pos_mmd_loss = self.mk_mmd_loss(item_pos_embed, llm_item_pos_embed)
+        # item_neg_mmd_loss = self.mk_mmd_loss(item_neg_embed, llm_item_neg_embed)
+        # contrastive_loss = (user_mmd_loss + item_pos_mmd_loss + item_neg_mmd_loss) / 3
 
         l2_loss = _L2_loss_mean(user_embed) + _L2_loss_mean(item_pos_embed) + _L2_loss_mean(item_neg_embed) + _L2_loss_mean(llm_user_embed) + _L2_loss_mean(llm_item_pos_embed) + _L2_loss_mean(llm_item_neg_embed)
         gate_reg_loss = (torch.mean(-torch.log(user_gate + 1e-5) - torch.log(1 - user_gate + 1e-5)) + \

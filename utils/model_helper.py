@@ -25,10 +25,10 @@ def early_stopping(recall_list, stopping_steps):
 #         if os.path.exists(old_model_state_file):
 #             os.system('rm {}'.format(old_model_state_file))
 
-def save_model(model, model_dir, beta, current_epoch, last_best_epoch=None):
+def save_model(model, model_dir, alpha, beta, current_epoch, last_best_epoch=None):
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
-    model_state_file = os.path.join(model_dir, f'best{beta}.pth')
+    model_state_file = os.path.join(model_dir, f'best{alpha}.pth')
     torch.save({'model_state_dict': model.state_dict(), 'epoch': current_epoch}, model_state_file)
 
     # if last_best_epoch is not None and current_epoch != last_best_epoch:

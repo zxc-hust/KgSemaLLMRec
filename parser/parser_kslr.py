@@ -12,7 +12,7 @@ def parse_kgat_args():
     parser.add_argument('--data_dir', nargs='?', default='datasets/',
                         help='Input data path.')
 
-    parser.add_argument('--use_pretrain', type=int, default=1,
+    parser.add_argument('--use_pretrain', type=int, default=0,
                         help='0: No pretrain, 1: Pretrain with stored model, 2: Pretrain with the learned embeddings.')
     
     # parser.add_argument('--use_pretrain', type=int, default=1,
@@ -21,7 +21,7 @@ def parse_kgat_args():
                         help='Path of learned embeddings.')
     parser.add_argument('--pretrain_model_path', nargs='?', default='kslr7/42_pre/best.pth',
                         help='Path of stored model.')
-    parser.add_argument('--lr', type=float, default=0.0001,
+    parser.add_argument('--lr', type=float, default=0.001,
                         help='Learning rate.')
     
     parser.add_argument('--llm_embedding_dir', nargs='?', default='datasets/amazon-book',
@@ -52,7 +52,7 @@ def parse_kgat_args():
                         help='Lambda when calculating KG l2 loss.')
     parser.add_argument('--cf_l2loss_lambda', type=float, default=1e-5,
                         help='Lambda when calculating CF l2 loss.')
-    parser.add_argument('--alpha', type=float, default=3, help='hyper-Param of contrastive loss.')
+    parser.add_argument('--alpha', type=float, default=0.005, help='hyper-Param of contrastive loss.')
     parser.add_argument('--beta', type=float, default=0.003, help='hyper-Param of gate loss.')
 
     parser.add_argument('--n_epoch', type=int, default=500,
@@ -76,7 +76,8 @@ def parse_kgat_args():
 
     parser.add_argument('--save_dir', nargs='?', default="kslr4/42",
                         help='Path of save_dir.')
-
+    parser.add_argument('--cuda', type=int, default=0,
+                        help='GPU index.')
     args = parser.parse_args()
 
     # save_dir = 'trained_model/KGAT/{}/embed-dim{}_relation-dim{}_{}_{}_{}_lr{}_pretrain{}/'.format(
